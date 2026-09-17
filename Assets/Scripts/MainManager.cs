@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
-using UnityEngine.InputSystem; // MIGRATED: New Input System namespace
+using UnityEngine.InputSystem;
+using TMPro;
+using System.Runtime.InteropServices;
+using System.Linq; // MIGRATED: New Input System namespace
 
 public class MainManager : MonoBehaviour
 {
@@ -11,7 +14,8 @@ public class MainManager : MonoBehaviour
     public int LineCount = 6;
     public Rigidbody Ball;
 
-    public Text ScoreText;
+    public TextMeshProUGUI ScoreText;
+    public TextMeshProUGUI HighScoreText;
     public GameObject GameOverText;
 
     private bool m_Started = false;
@@ -21,23 +25,29 @@ public class MainManager : MonoBehaviour
 
     // MIGRATED: InputAction replaces Input.GetKeyDown(KeyCode.Space)
     private InputAction m_LaunchAction;
+    private InputAction m_ReturnAction;
+
+    private SessionManager inst = SessionManager.Instance;
 
     // MIGRATED: bind the Space key as a button action
     void Awake()
     {
         m_LaunchAction = new InputAction("Launch", InputActionType.Button, "<Keyboard>/space");
+        m_ReturnAction = new InputAction("Return", InputActionType.Button, "<Keyboard>/escape");
     }
 
     // MIGRATED: enable the action while the component is active
     void OnEnable()
     {
         m_LaunchAction.Enable();
+        m_ReturnAction.Enable();
     }
 
     // MIGRATED: disable the action when the component is inactive
     void OnDisable()
     {
         m_LaunchAction.Disable();
+        m_ReturnAction.Disable();
     }
 
     // Start is called before the first frame update
@@ -57,6 +67,9 @@ public class MainManager : MonoBehaviour
                 brick.onDestroyed.AddListener(AddPoint);
             }
         }
+
+        UpdateHighScore();
+        AddPoint(inst.score);
     }
 
     private void Update()
@@ -79,19 +92,62 @@ public class MainManager : MonoBehaviour
             if (m_LaunchAction.WasPressedThisFrame()) // MIGRATED: was Input.GetKeyDown(KeyCode.Space)
             {
                 SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+            } else if (m_ReturnAction.WasPressedThisFrame())
+            {
+                SceneManager.LoadScene(0);
             }
+        }
+
+        if (FindObjectsByType<Brick>(FindObjectsSortMode.None).Length == 0)
+        {
+            inst.score += m_Points;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
     }
 
     void AddPoint(int point)
     {
         m_Points += point;
-        ScoreText.text = $"Score : {m_Points}";
+        ScoreText.text = $"Score of {inst.playerName} : {m_Points}";
     }
 
     public void GameOver()
     {
         m_GameOver = true;
         GameOverText.SetActive(true);
+
+        inst.score = 0;
+
+        CheckHighScore();
+    }
+
+    void CheckHighScore()
+    {
+        for (int i = 0; i < inst.highScores.Count; i++)
+        {
+            if (m_Points > inst.highScores[i].score)
+            {
+                inst.highScores.Insert(i, new SessionManager.HighScore());
+
+                inst.highScores[i].playerName = inst.playerName;
+                inst.highScores[i].score = m_Points;
+
+                if (inst.highScores.Count > 5)
+                {
+                    inst.highScores.RemoveAt(5);
+                }
+
+                inst.SaveHighScore();
+
+                UpdateHighScore();
+
+                break;
+            }
+        }
+    }
+
+    void UpdateHighScore()
+    {
+        HighScoreText.text = $"Best Score : {inst.highScores[0].playerName} - {inst.highScores[0].score}";
     }
 }
